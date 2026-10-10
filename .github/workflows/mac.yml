@@ -89,7 +89,7 @@ jobs:
       - name: Probe - what Safari allows
         continue-on-error: true
         run: |
-          dist/Skini.app/Contents/MacOS/skini serve --quiet &
+          SKINI_ALLOWED_ORIGINS="https://www.applepay.skin,http://neverssl.com,https://example.com" dist/Skini.app/Contents/MacOS/skini serve --quiet &
           PID=$!
           for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && break; sleep 0.5; done
           sudo safaridriver --enable
