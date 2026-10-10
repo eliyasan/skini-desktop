@@ -86,40 +86,36 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:7879/skini/ping && echo " <- launched by skini://" && break; sleep 0.5; done
           pkill -f Skini.app/Contents/MacOS/skini || true
 
-      - name: Test on macOS - Safari on the live site reaches the bridge over https
+      - name: Test on macOS - Studio served by Skini works in Safari
         run: |
-          SKINI_SKIP_TRUST=1 dist/Skini.app/Contents/MacOS/skini serve --quiet &
+          dist/Skini.app/Contents/MacOS/skini serve --quiet &
           PID=$!
-          for i in $(seq 1 30); do curl -skf https://127.0.0.1:7880/skini/ping >/dev/null && break; sleep 0.5; done
-          CERT="$HOME/Library/Application Support/Skini/tls/cert.pem"
-          openssl x509 -in "$CERT" -noout -subject -dates -ext subjectAltName,basicConstraints
-          ls -l "$HOME/Library/Application Support/Skini/tls/"
-          echo "--- https ping (cert not yet trusted, -k)"
-          curl -sk https://127.0.0.1:7880/skini/ping; echo
-          echo "--- trusted before? (expect no)"
-          security verify-cert -p ssl -c "$CERT" && echo yes || echo no
-          # In the real app macOS asks the user once; here (no human) we trust it with sudo.
-          sudo security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain "$CERT"
-          echo "--- trusted after? (expect yes)"
-          security verify-cert -p ssl -c "$CERT"
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && break; sleep 0.5; done
+          echo "--- pass-through of the Studio page and its files"
+          curl -s -o /dev/null -w "app page %{http_code} %{content_type} %{size_download}B
+" -H 'Accept: text/html' http://127.0.0.1:7879/app
+          curl -s -o /dev/null -w "app.js   %{http_code} %{content_type} %{size_download}B
+" http://127.0.0.1:7879/assets/app.js
+          curl -s -w "
+api      %{http_code}
+" http://127.0.0.1:7879/api/license/public-key
+          echo "--- other pages go to the real site"
+          curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}
+" -H 'Accept: text/html' http://127.0.0.1:7879/checkout
           sudo safaridriver --enable
           safaridriver -p 4444 &
           sleep 3
-          P=.github/safari-probe.sh
-          sudo tcpdump -i lo0 -nn 'tcp port 7880 and tcp[tcpflags] & tcp-syn != 0' > /tmp/syn.txt 2>/dev/null &
-          sleep 2
-          bash $P https://www.applepay.skin/app https://127.0.0.1:7880/skini/ping http://127.0.0.1:7879/skini/ping | tee probe.txt
-          echo "--- SYNs to 7880 during live-site probe:"; sleep 1; wc -l < /tmp/syn.txt
-          echo "--- top-level navigation to the https bridge, then same-origin fetch:"
-          bash $P https://127.0.0.1:7880/skini/ping https://127.0.0.1:7880/skini/ping
-          echo "--- link click from the live site to the local bridge:"
-          bash .github/safari-nav.sh https://www.applepay.skin/app http://127.0.0.1:7879/skini/ping
-          bash .github/safari-nav.sh https://www.applepay.skin/app https://127.0.0.1:7880/skini/ping
-          echo "--- page from localhost-https, fetch bridge:"
-          bash $P https://localhost:7880/skini/ping https://127.0.0.1:7880/skini/ping
-          sudo pkill tcpdump || true
+          SID=$(curl -s -X POST localhost:4444/session -H 'Content-Type: application/json' -d '{"capabilities":{"alwaysMatch":{"browserName":"safari"}}}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["value"]["sessionId"])')
+          curl -s -X POST localhost:4444/session/$SID/url -H 'Content-Type: application/json' -d '{"url":"http://127.0.0.1:7879/app?lang=en"}' >/dev/null
+          sleep 6
+          RES=$(curl -s -X POST localhost:4444/session/$SID/execute/sync -H 'Content-Type: application/json' -d '{"script":"var p=document.querySelector(\"#pill-text\"); return document.title+\" | pill=\"+(p&&p.textContent)+\" | key-box=\"+!!document.querySelector(\"#key\")","args":[]}')
+          echo "Safari, local Studio: $RES"
+          curl -s localhost:4444/session/$SID/screenshot | python3 -c 'import sys,json,base64; open("studio-safari.png","wb").write(base64.b64decode(json.load(sys.stdin)["value"]))'
+          curl -s -X DELETE localhost:4444/session/$SID >/dev/null
+          echo "--- link from the live site to the local Studio"
+          bash .github/safari-nav.sh https://www.applepay.skin/app http://127.0.0.1:7879/app
           kill $PID
-          grep "fetch=https://127.0.0.1:7880" probe.txt | grep -q "skini-desktop"
+          echo "$RES" | grep -q "pill=Helper app is running"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -127,3 +123,4 @@ jobs:
           path: |
             dist/Skini-mac.dmg
             dist/Skini-mac.zip
+            studio-safari.png

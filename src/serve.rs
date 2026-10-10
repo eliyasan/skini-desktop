@@ -43,7 +43,12 @@ fn allowed_origins() -> Vec<String> {
 fn site_url() -> String {
     // Dev default = the local server. When you deploy to your own domain, set the
     // SKINI_SITE env var (or change this) to e.g. https://skini.app/app.
-    std::env::var("SKINI_SITE").unwrap_or_else(|_| "https://www.applepay.skin/app".to_string())
+    // On the Mac the Studio opens from the bridge itself, because Safari blocks the site from reaching it.
+    #[cfg(target_os = "macos")]
+    let default = crate::site_proxy::STUDIO_URL;
+    #[cfg(not(target_os = "macos"))]
+    let default = "https://www.applepay.skin/app";
+    std::env::var("SKINI_SITE").unwrap_or_else(|_| default.to_string())
 }
 
 fn exe_path() -> PathBuf {
@@ -321,6 +326,12 @@ fn route(method: &Method, path: &str, req: &mut Request) -> (u16, Value) {
 }
 
 fn handle(mut req: Request) {
+    // Mac: anything that is not a bridge call belongs to the Studio served from here (see site_proxy.rs).
+    #[cfg(target_os = "macos")]
+    if !req.url().starts_with("/skini/") {
+        crate::site_proxy::handle(req);
+        return;
+    }
     let origin = cors_origin(&req);
     if req.method() == &Method::Options {
         let mut resp = Response::empty(204);
@@ -485,19 +496,6 @@ pub fn run(open: bool, quiet: bool) -> i32 {
     // Worker pool so ping isn't blocked while a scan/apply child is running.
     let mut workers = Vec::new();
     spawn_workers(&server, 4, &mut workers);
-
-    // Mac: the same API over https too, because Safari blocks http://127.0.0.1 from an https site.
-    #[cfg(target_os = "macos")]
-    if let Some((certificate, private_key)) = crate::local_tls::load_or_create() {
-        match Server::https(crate::local_tls::HTTPS_ADDR, tiny_http::SslConfig { certificate, private_key }) {
-            Ok(s) => {
-                eprintln!("Skini bridge also on https://{}", crate::local_tls::HTTPS_ADDR);
-                spawn_workers(&Arc::new(s), 4, &mut workers);
-                std::thread::spawn(crate::local_tls::ensure_trusted);
-            }
-            Err(e) => eprintln!("https listener failed: {e}"),
-        }
-    }
 
     if open {
         open_browser(&site_url());
