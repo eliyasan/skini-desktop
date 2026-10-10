@@ -51,7 +51,7 @@ jobs:
           ORIGIN=https://www.applepay.skin
           curl -sf -H "Origin: $ORIGIN" -D - http://127.0.0.1:7879/skini/ping | tee ping.txt
           grep -qi "access-control-allow-origin: $ORIGIN" ping.txt
-          grep -q '"ok":true' ping.txt
+          grep -q '"app":"skini-desktop"' ping.txt
           echo "--- autostart on"
           curl -sf -X POST -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -d '{"enabled":true}' http://127.0.0.1:7879/skini/autostart
           echo; cat ~/Library/LaunchAgents/skin.applepay.skini.plist
