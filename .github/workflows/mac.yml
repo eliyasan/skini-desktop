@@ -97,8 +97,12 @@ jobs:
           sleep 3
           P=.github/safari-probe.sh
           bash $P https://www.applepay.skin/app http://127.0.0.1:7879/skini/ping http://localhost:7879/skini/ping
-          bash $P http://neverssl.com/ http://127.0.0.1:7879/skini/ping http://localhost:7879/skini/ping
-          bash $P https://example.com/ http://127.0.0.1:7879/skini/ping
+          mkdir -p /tmp/www && echo '<html><body>probe</body></html>' > /tmp/www/index.html
+          (cd /tmp/www && python3 -m http.server 8080 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          sleep 1
+          bash $P http://127.0.0.1:8080/ http://127.0.0.1:7879/skini/ping
+          bash $P http://127.0.0.1:7879/skini/ping http://127.0.0.1:7879/skini/ping
+          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" /Applications/Safari.app/Contents/Info.plist
           sw_vers
           kill $PID
 
