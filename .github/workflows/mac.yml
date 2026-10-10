@@ -32,7 +32,7 @@ jobs:
 
       - name: Test on macOS - Apple frameworks load (MobileDevice, AirTrafficHost)
         run: |
-          OUT=$(dist/Skini.app/Contents/MacOS/skini list)
+          OUT=$(dist/Skini.app/Contents/MacOS/skini list 2>&1) || true
           echo "$OUT"
           echo "$OUT" | tail -1 | grep -q '"ok":true'
 
