@@ -112,6 +112,9 @@ jobs:
           echo "--- SYNs to 7880 during live-site probe:"; sleep 1; wc -l < /tmp/syn.txt
           echo "--- top-level navigation to the https bridge, then same-origin fetch:"
           bash $P https://127.0.0.1:7880/skini/ping https://127.0.0.1:7880/skini/ping
+          echo "--- link click from the live site to the local bridge:"
+          bash .github/safari-nav.sh https://www.applepay.skin/app http://127.0.0.1:7879/skini/ping
+          bash .github/safari-nav.sh https://www.applepay.skin/app https://127.0.0.1:7880/skini/ping
           echo "--- page from localhost-https, fetch bridge:"
           bash $P https://localhost:7880/skini/ping https://127.0.0.1:7880/skini/ping
           sudo pkill tcpdump || true
