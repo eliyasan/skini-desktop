@@ -86,6 +86,26 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:7879/skini/ping && echo " <- launched by skini://" && break; sleep 0.5; done
           pkill -f Skini.app/Contents/MacOS/skini || true
 
+      - name: Test on macOS - Safari on the live site can reach the bridge
+        run: |
+          dist/Skini.app/Contents/MacOS/skini serve --quiet &
+          PID=$!
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && break; sleep 0.5; done
+          sudo safaridriver --enable
+          safaridriver -p 4444 &
+          sleep 3
+          SID=$(curl -s -X POST localhost:4444/session -H 'Content-Type: application/json' -d '{"capabilities":{"alwaysMatch":{"browserName":"safari"}}}' | python3 -c 'import sys,json; print(json.load(sys.stdin)["value"]["sessionId"])')
+          curl -s -X POST localhost:4444/session/$SID/url -H 'Content-Type: application/json' -d '{"url":"https://www.applepay.skin/app"}' >/dev/null
+          sleep 4
+          SCRIPT='const cb=arguments[arguments.length-1]; fetch("http://127.0.0.1:7879/skini/ping").then(r=>r.json()).then(j=>cb("OK "+j.app+" "+j.backend)).catch(e=>cb("ERR "+e));'
+          RES=$(curl -s -X POST localhost:4444/session/$SID/execute/async -H 'Content-Type: application/json' -d "$(python3 -c 'import json,sys; print(json.dumps({"script":sys.argv[1],"args":[]}))' "$SCRIPT")")
+          echo "Safari fetch result: $RES"
+          PILL=$(curl -s -X POST localhost:4444/session/$SID/execute/sync -H 'Content-Type: application/json' -d '{"script":"return document.querySelector(\"#pill-text\") && document.querySelector(\"#pill-text\").textContent","args":[]}')
+          echo "Studio status pill: $PILL"
+          curl -s -X DELETE localhost:4444/session/$SID >/dev/null
+          kill $PID
+          echo "$RES" | grep -q "OK skini-desktop"
+
       - uses: actions/upload-artifact@v4
         with:
           name: skini-mac
