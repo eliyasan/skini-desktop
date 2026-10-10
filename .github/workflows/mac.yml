@@ -96,12 +96,16 @@ jobs:
           safaridriver -p 4444 &
           sleep 3
           P=.github/safari-probe.sh
+          sudo tcpdump -i lo0 -A -s 0 'tcp port 7879 and (tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420 or tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x4f505449 or tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x48545450)' > /tmp/dump.txt 2>/dev/null &
+          sleep 2
           bash $P https://www.applepay.skin/app http://127.0.0.1:7879/skini/ping http://localhost:7879/skini/ping
           mkdir -p /tmp/www && echo '<html><body>probe</body></html>' > /tmp/www/index.html
           (cd /tmp/www && python3 -m http.server 8080 --bind 127.0.0.1 >/dev/null 2>&1 &)
           sleep 1
           bash $P http://127.0.0.1:8080/ http://127.0.0.1:7879/skini/ping
           bash $P http://127.0.0.1:7879/skini/ping http://127.0.0.1:7879/skini/ping
+          sleep 1; sudo pkill tcpdump; sleep 1
+          echo "===== TRAFFIC ====="; grep -a -E "^(GET|OPTIONS|HTTP/|Origin|Access-Control|Host|Sec-|Referer)" /tmp/dump.txt | head -60
           /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" /Applications/Safari.app/Contents/Info.plist
           sw_vers
           kill $PID
