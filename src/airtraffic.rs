@@ -7,21 +7,9 @@ use anyhow::{Context, Result, bail};
 use crate::apple::{ATHostConnectionRef, get_apple_libraries};
 use crate::device::{DeviceTransport, ensure_transport_available};
 
-#[link(name = "bcrypt")]
-unsafe extern "system" {
-    fn BCryptGenRandom(
-        hAlgorithm: *mut std::ffi::c_void,
-        pbBuffer: *mut u8,
-        cbBuffer: u32,
-        dwFlags: u32,
-    ) -> i32;
-}
-
 fn generate_uuid_v4() -> String {
     let mut bytes = [0u8; 16];
-    unsafe {
-        let _ = BCryptGenRandom(std::ptr::null_mut(), bytes.as_mut_ptr(), bytes.len() as u32, 2);
-    }
+    crate::platform::random_bytes(&mut bytes);
     bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant
     format!(

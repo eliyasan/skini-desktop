@@ -27,26 +27,9 @@ pub const CACHE_FILES: &[&str] = &[
     "Preview",
 ];
 
-#[link(name = "bcrypt")]
-unsafe extern "system" {
-    fn BCryptGenRandom(
-        hAlgorithm: *mut std::ffi::c_void,
-        pbBuffer: *mut u8,
-        cbBuffer: u32,
-        dwFlags: u32,
-    ) -> i32;
-}
-
 pub fn generate_token() -> String {
     let mut bytes = [0u8; 10];
-    unsafe {
-        let _ = BCryptGenRandom(
-            std::ptr::null_mut(),
-            bytes.as_mut_ptr(),
-            bytes.len() as u32,
-            2, // BCRYPT_USE_SYSTEM_PREFERRED_RNG
-        );
-    }
+    crate::platform::random_bytes(&mut bytes);
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 

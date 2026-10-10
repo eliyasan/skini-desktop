@@ -67,3 +67,23 @@ pub fn set_recv_timeout(socket: i32, ms: u32) {
         );
     }
 }
+
+/// Cryptographically random bytes from the OS.
+pub fn random_bytes(buf: &mut [u8]) {
+    #[cfg(windows)]
+    unsafe {
+        #[link(name = "bcrypt")]
+        unsafe extern "system" {
+            fn BCryptGenRandom(hAlgorithm: *mut std::ffi::c_void, pbBuffer: *mut u8, cbBuffer: u32, dwFlags: u32) -> i32;
+        }
+        // 2 = BCRYPT_USE_SYSTEM_PREFERRED_RNG
+        let _ = BCryptGenRandom(std::ptr::null_mut(), buf.as_mut_ptr(), buf.len() as u32, 2);
+    }
+    #[cfg(unix)]
+    unsafe {
+        unsafe extern "C" {
+            fn arc4random_buf(buf: *mut std::ffi::c_void, nbytes: usize);
+        }
+        arc4random_buf(buf.as_mut_ptr() as *mut std::ffi::c_void, buf.len());
+    }
+}
