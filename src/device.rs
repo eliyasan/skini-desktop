@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
+#[cfg(windows)]
 use std::net::{SocketAddr, TcpStream};
 use std::ptr;
 use std::sync::Arc;
@@ -114,13 +115,32 @@ pub struct UsbmuxDeviceEntry {
     pub properties_plist: Vec<u8>,
 }
 
-pub fn query_usbmux_devices() -> Result<Vec<UsbmuxDeviceEntry>> {
-    let addr: SocketAddr = "127.0.0.1:27015".parse().unwrap();
-    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))
-        .context("Could not connect to Apple Mobile Device Service (usbmuxd) at 127.0.0.1:27015. Please ensure iTunes or Apple Mobile Device Support is installed and the service is running.")?;
+trait UsbmuxStream: Read + Write {}
+impl<T: Read + Write> UsbmuxStream for T {}
 
+// Windows: Apple Mobile Device Service listens on a local TCP port.
+#[cfg(windows)]
+fn connect_usbmux() -> Result<Box<dyn UsbmuxStream>> {
+    let addr: SocketAddr = "127.0.0.1:27015".parse().unwrap();
+    let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(2))
+        .context("Could not connect to Apple Mobile Device Service (usbmuxd) at 127.0.0.1:27015. Please ensure iTunes or Apple Mobile Device Support is installed and the service is running.")?;
     stream.set_read_timeout(Some(Duration::from_secs(3)))?;
     stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+    Ok(Box::new(stream))
+}
+
+// macOS: usbmuxd is part of the system and listens on a Unix socket.
+#[cfg(unix)]
+fn connect_usbmux() -> Result<Box<dyn UsbmuxStream>> {
+    let stream = std::os::unix::net::UnixStream::connect("/var/run/usbmuxd")
+        .context("Could not connect to usbmuxd at /var/run/usbmuxd")?;
+    stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+    Ok(Box::new(stream))
+}
+
+pub fn query_usbmux_devices() -> Result<Vec<UsbmuxDeviceEntry>> {
+    let mut stream = connect_usbmux()?;
 
     let mut req_dict = HashMap::new();
     req_dict.insert("MessageType".to_string(), plist::Value::String("ListDevices".to_string()));
