@@ -445,6 +445,18 @@ fn autostart_enabled() -> bool { false }
 #[cfg(not(any(windows, target_os = "macos")))]
 fn set_autostart(_on: bool) -> bool { false }
 
+fn spawn_workers(server: &Arc<Server>, n: usize, workers: &mut Vec<std::thread::JoinHandle<()>>) {
+    for _ in 0..n {
+        let s = server.clone();
+        workers.push(std::thread::spawn(move || loop {
+            match s.recv() {
+                Ok(req) => handle(req),
+                Err(_) => break,
+            }
+        }));
+    }
+}
+
 pub fn run(open: bool, quiet: bool) -> i32 {
     let addr = "127.0.0.1:7879";
     let server = match Server::http(addr) {
@@ -472,14 +484,19 @@ pub fn run(open: bool, quiet: bool) -> i32 {
 
     // Worker pool so ping isn't blocked while a scan/apply child is running.
     let mut workers = Vec::new();
-    for _ in 0..4 {
-        let s = server.clone();
-        workers.push(std::thread::spawn(move || loop {
-            match s.recv() {
-                Ok(req) => handle(req),
-                Err(_) => break,
+    spawn_workers(&server, 4, &mut workers);
+
+    // Mac: the same API over https too, because Safari blocks http://127.0.0.1 from an https site.
+    #[cfg(target_os = "macos")]
+    if let Some((certificate, private_key)) = crate::local_tls::load_or_create() {
+        match Server::https(crate::local_tls::HTTPS_ADDR, tiny_http::SslConfig { certificate, private_key }) {
+            Ok(s) => {
+                eprintln!("Skini bridge also on https://{}", crate::local_tls::HTTPS_ADDR);
+                spawn_workers(&Arc::new(s), 4, &mut workers);
+                std::thread::spawn(crate::local_tls::ensure_trusted);
             }
-        }));
+            Err(e) => eprintln!("https listener failed: {e}"),
+        }
     }
 
     if open {

@@ -25,6 +25,10 @@ serde_json = "1.0"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tiny_http = "0.12"
 
+# macOS: the bridge also serves https (Safari blocks http://127.0.0.1 from an https page).
+[target.'cfg(target_os = "macos")'.dependencies]
+tiny_http = { version = "0.12", features = ["ssl-rustls"] }
+
 [profile.release]
 lto = true
 codegen-units = 1

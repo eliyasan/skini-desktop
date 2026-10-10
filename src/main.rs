@@ -12,6 +12,8 @@ mod cli;
 mod device;
 mod flasher;
 mod image_skin;
+#[cfg(target_os = "macos")]
+mod local_tls;
 mod i18n;
 mod passthm;
 mod platform;

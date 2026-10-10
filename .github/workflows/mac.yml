@@ -86,29 +86,29 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:7879/skini/ping && echo " <- launched by skini://" && break; sleep 0.5; done
           pkill -f Skini.app/Contents/MacOS/skini || true
 
-      - name: Probe - what Safari allows
-        continue-on-error: true
+      - name: Test on macOS - Safari on the live site reaches the bridge over https
         run: |
-          SKINI_ALLOWED_ORIGINS="https://www.applepay.skin,http://neverssl.com,https://example.com" dist/Skini.app/Contents/MacOS/skini serve --quiet &
+          SKINI_SKIP_TRUST=1 dist/Skini.app/Contents/MacOS/skini serve --quiet &
           PID=$!
-          for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && break; sleep 0.5; done
+          for i in $(seq 1 30); do curl -skf https://127.0.0.1:7880/skini/ping >/dev/null && break; sleep 0.5; done
+          CERT="$HOME/Library/Application Support/Skini/tls/cert.pem"
+          openssl x509 -in "$CERT" -noout -subject -dates -ext subjectAltName,basicConstraints
+          ls -l "$HOME/Library/Application Support/Skini/tls/"
+          echo "--- https ping (cert not yet trusted, -k)"
+          curl -sk https://127.0.0.1:7880/skini/ping; echo
+          echo "--- trusted before? (expect no)"
+          security verify-cert -p ssl -c "$CERT" && echo yes || echo no
+          # In the real app macOS asks the user once; here (no human) we trust it with sudo.
+          sudo security add-trusted-cert -d -r trustRoot -p ssl -k /Library/Keychains/System.keychain "$CERT"
+          echo "--- trusted after? (expect yes)"
+          security verify-cert -p ssl -c "$CERT"
           sudo safaridriver --enable
           safaridriver -p 4444 &
           sleep 3
           P=.github/safari-probe.sh
-          sudo tcpdump -i lo0 -A -s 0 'tcp port 7879 and (tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420 or tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x4f505449 or tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x48545450)' > /tmp/dump.txt 2>/dev/null &
-          sleep 2
-          bash $P https://www.applepay.skin/app http://127.0.0.1:7879/skini/ping http://localhost:7879/skini/ping
-          mkdir -p /tmp/www && echo '<html><body>probe</body></html>' > /tmp/www/index.html
-          (cd /tmp/www && python3 -m http.server 8080 --bind 127.0.0.1 >/dev/null 2>&1 &)
-          sleep 1
-          bash $P http://127.0.0.1:8080/ http://127.0.0.1:7879/skini/ping
-          bash $P http://127.0.0.1:7879/skini/ping http://127.0.0.1:7879/skini/ping
-          sleep 1; sudo pkill tcpdump; sleep 1
-          echo "===== TRAFFIC ====="; grep -a -E "^(GET|OPTIONS|HTTP/|Origin|Access-Control|Host|Sec-|Referer)" /tmp/dump.txt | head -60
-          /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" /Applications/Safari.app/Contents/Info.plist
-          sw_vers
+          bash $P https://www.applepay.skin/app https://127.0.0.1:7880/skini/ping http://127.0.0.1:7879/skini/ping | tee probe.txt
           kill $PID
+          grep "fetch=https://127.0.0.1:7880" probe.txt | grep -q "skini-desktop"
 
       - uses: actions/upload-artifact@v4
         with:
