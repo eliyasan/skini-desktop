@@ -92,16 +92,11 @@ jobs:
           PID=$!
           for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && break; sleep 0.5; done
           echo "--- pass-through of the Studio page and its files"
-          curl -s -o /dev/null -w "app page %{http_code} %{content_type} %{size_download}B
-" -H 'Accept: text/html' http://127.0.0.1:7879/app
-          curl -s -o /dev/null -w "app.js   %{http_code} %{content_type} %{size_download}B
-" http://127.0.0.1:7879/assets/app.js
-          curl -s -w "
-api      %{http_code}
-" http://127.0.0.1:7879/api/license/public-key
+          curl -s -o /dev/null -w "app page %{http_code} %{content_type} %{size_download}B" -H 'Accept: text/html' http://127.0.0.1:7879/app; echo
+          curl -s -o /dev/null -w "app.js   %{http_code} %{content_type} %{size_download}B" http://127.0.0.1:7879/assets/app.js; echo
+          curl -s -w " [api %{http_code}]" http://127.0.0.1:7879/api/license/public-key; echo
           echo "--- other pages go to the real site"
-          curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}
-" -H 'Accept: text/html' http://127.0.0.1:7879/checkout
+          curl -s -o /dev/null -w "%{http_code} -> %{redirect_url}" -H 'Accept: text/html' http://127.0.0.1:7879/checkout; echo
           sudo safaridriver --enable
           safaridriver -p 4444 &
           sleep 3
