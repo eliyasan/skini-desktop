@@ -106,7 +106,15 @@ jobs:
           safaridriver -p 4444 &
           sleep 3
           P=.github/safari-probe.sh
+          sudo tcpdump -i lo0 -nn 'tcp port 7880 and tcp[tcpflags] & tcp-syn != 0' > /tmp/syn.txt 2>/dev/null &
+          sleep 2
           bash $P https://www.applepay.skin/app https://127.0.0.1:7880/skini/ping http://127.0.0.1:7879/skini/ping | tee probe.txt
+          echo "--- SYNs to 7880 during live-site probe:"; sleep 1; wc -l < /tmp/syn.txt
+          echo "--- top-level navigation to the https bridge, then same-origin fetch:"
+          bash $P https://127.0.0.1:7880/skini/ping https://127.0.0.1:7880/skini/ping
+          echo "--- page from localhost-https, fetch bridge:"
+          bash $P https://localhost:7880/skini/ping https://127.0.0.1:7880/skini/ping
+          sudo pkill tcpdump || true
           kill $PID
           grep "fetch=https://127.0.0.1:7880" probe.txt | grep -q "skini-desktop"
 
