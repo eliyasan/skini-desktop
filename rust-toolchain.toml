@@ -1,0 +1,7 @@
+# Build natively with the GNU toolchain, which self-contains its linker (MinGW).
+# This avoids needing Visual Studio Build Tools / the MSVC linker.
+# For a release with the MSVC toolchain instead, install VS Build Tools and run:
+#   cargo +stable-x86_64-pc-windows-msvc build --release
+[toolchain]
+channel = "stable-x86_64-pc-windows-gnu"
+targets = ["x86_64-pc-windows-gnu"]

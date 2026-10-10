@@ -1,0 +1,94 @@
+name: macOS build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust targets
+        run: |
+          rm -f rust-toolchain.toml   # that file pins the Windows GNU toolchain
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build Skini.app (universal)
+        run: bash macos/build-app.sh
+
+      - name: Check the binary
+        run: |
+          BIN=dist/Skini.app/Contents/MacOS/skini
+          file "$BIN"
+          lipo -archs "$BIN"
+          otool -L "$BIN"
+
+      - name: Test on macOS - version
+        run: dist/Skini.app/Contents/MacOS/skini version
+
+      - name: Test on macOS - Apple frameworks load (MobileDevice, AirTrafficHost)
+        run: |
+          OUT=$(dist/Skini.app/Contents/MacOS/skini list)
+          echo "$OUT"
+          echo "$OUT" | tail -1 | grep -q '"ok":true'
+
+      - name: Test on macOS - Intel build under Rosetta
+        run: |
+          softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1 || true
+          arch -x86_64 dist/Skini.app/Contents/MacOS/skini list | tail -1 | grep -q '"ok":true' && echo "Intel slice OK"
+
+      - name: Test on macOS - bridge (real device backend)
+        run: |
+          BIN=dist/Skini.app/Contents/MacOS/skini
+          "$BIN" serve --quiet &
+          PID=$!
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping && break; sleep 0.5; done
+          echo
+          ORIGIN=https://www.applepay.skin
+          curl -sf -H "Origin: $ORIGIN" -D - http://127.0.0.1:7879/skini/ping | tee ping.txt
+          grep -qi "access-control-allow-origin: $ORIGIN" ping.txt
+          grep -q '"ok":true' ping.txt
+          echo "--- autostart on"
+          curl -sf -X POST -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -d '{"enabled":true}' http://127.0.0.1:7879/skini/autostart
+          echo; cat ~/Library/LaunchAgents/skin.applepay.skini.plist
+          plutil -lint ~/Library/LaunchAgents/skin.applepay.skini.plist
+          echo "--- autostart off"
+          curl -sf -X POST -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -d '{"enabled":false}' http://127.0.0.1:7879/skini/autostart
+          echo; test ! -f ~/Library/LaunchAgents/skin.applepay.skini.plist && echo "LaunchAgent removed"
+          echo "--- apply without iPhone must fail gracefully, not crash"
+          curl -s -X POST -H "Origin: $ORIGIN" -H 'Content-Type: application/json' -d '{"card":"0000","image":"aGVsbG8="}' http://127.0.0.1:7879/skini/apply; echo
+          curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && echo "bridge still alive"
+          kill $PID
+
+      - name: Test on macOS - simulation flow
+        run: |
+          SKINI_SIMULATE=1 dist/Skini.app/Contents/MacOS/skini serve --quiet &
+          PID=$!
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:7879/skini/ping >/dev/null && break; sleep 0.5; done
+          curl -sf http://127.0.0.1:7879/skini/ping; echo
+          kill $PID
+
+      - name: Test on macOS - app bundle launches via LaunchServices and skini:// is registered
+        run: |
+          cp -R dist/Skini.app /Applications/
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Skini.app
+          open -g -j /Applications/Skini.app --args serve --quiet
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:7879/skini/ping && break; sleep 0.5; done
+          echo
+          pkill -f Skini.app/Contents/MacOS/skini || true
+          sleep 1
+          /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump | grep -i "skini:" | head -3
+          open -g "skini://open"
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:7879/skini/ping && echo " <- launched by skini://" && break; sleep 0.5; done
+          pkill -f Skini.app/Contents/MacOS/skini || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skini-mac
+          path: |
+            dist/Skini-mac.dmg
+            dist/Skini-mac.zip
