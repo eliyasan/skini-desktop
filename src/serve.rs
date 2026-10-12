@@ -356,8 +356,12 @@ fn handle(mut req: Request) {
 }
 
 fn open_browser(url: &str) {
+    // CREATE_NO_WINDOW: otherwise a black console window flashes up while the browser opens.
     #[cfg(windows)]
-    let _ = Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    let _ = {
+        use std::os::windows::process::CommandExt;
+        Command::new("cmd").args(["/C", "start", "", url]).creation_flags(0x0800_0000).spawn()
+    };
     #[cfg(not(windows))]
     let _ = Command::new("open").arg(url).spawn();
 }
@@ -477,6 +481,13 @@ pub fn run(open: bool, quiet: bool) -> i32 {
             if quiet {
                 return 0;
             }
+            // Skini is already running (e.g. from startup): just bring the Studio up.
+            if already_running(addr) {
+                if open {
+                    open_browser(&site_url());
+                }
+                return 0;
+            }
             rfd::MessageDialog::new()
                 .set_title("Skini")
                 .set_level(rfd::MessageLevel::Error)
@@ -500,8 +511,31 @@ pub fn run(open: bool, quiet: bool) -> i32 {
     if open {
         open_browser(&site_url());
     }
+    // A double-click shows a small "Skini is running" window; closing it stops Skini.
+    // Background starts (Windows startup, the site's skini:// link) stay invisible.
+    #[cfg(windows)]
+    if !quiet {
+        if crate::status_window::show(|| open_browser(&site_url())) {
+            return 0; // the user closed the window: stop Skini
+        }
+        // The window could not open on this machine: keep the bridge running in the background.
+    }
     for w in workers {
         let _ = w.join();
     }
     0
+}
+
+// Is another Skini bridge answering on this address?
+fn already_running(addr: &str) -> bool {
+    use std::io::{Read as _, Write as _};
+    let Ok(mut s) = std::net::TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_millis(600)) else { return false };
+    let _ = s.set_read_timeout(Some(Duration::from_millis(800)));
+    if s.write_all(b"GET /skini/ping HTTP/1.0
+Host: 127.0.0.1
+
+").is_err() { return false; }
+    let mut buf = String::new();
+    let _ = s.read_to_string(&mut buf);
+    buf.contains("skini-desktop")
 }

@@ -860,7 +860,7 @@ fn draw_status_dot(ui: &mut egui::Ui, color: egui::Color32) {
     ui.painter().circle_filled(rect.center(), 4.0, color);
 }
 
-fn setup_custom_fonts(ctx: &egui::Context) {
+pub(crate) fn setup_custom_fonts(ctx: &egui::Context) {
     let windows_dir = std::env::var_os("WINDIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(r"C:\Windows"));

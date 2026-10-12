@@ -1,7 +1,7 @@
 1 ICON "skini.ico"
 1 VERSIONINFO
-FILEVERSION 0,1,1,0
-PRODUCTVERSION 0,1,1,0
+FILEVERSION 0,1,2,0
+PRODUCTVERSION 0,1,2,0
 FILEOS 0x40004
 FILETYPE 0x1
 BEGIN
@@ -9,14 +9,14 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "Skini"
+      VALUE "CompanyName", "Skini inc"
       VALUE "FileDescription", "Skini - Apple Pay card designs"
-      VALUE "FileVersion", "0.1.1"
+      VALUE "FileVersion", "0.1.2"
       VALUE "InternalName", "skini"
-      VALUE "LegalCopyright", "Skini"
+      VALUE "LegalCopyright", "Copyright Skini inc"
       VALUE "OriginalFilename", "skini.exe"
       VALUE "ProductName", "Skini"
-      VALUE "ProductVersion", "0.1.1"
+      VALUE "ProductVersion", "0.1.2"
     END
   END
   BLOCK "VarFileInfo"

@@ -17,6 +17,8 @@ mod passthm;
 mod platform;
 mod scanner;
 mod serve;
+#[cfg(windows)]
+mod status_window;
 #[cfg(target_os = "macos")]
 mod site_proxy;
 mod wallet_backup;

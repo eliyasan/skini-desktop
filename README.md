@@ -1,5 +1,16 @@
 # Skini Desktop
 
+Free, open-source (MIT) Windows and macOS helper for [Skini](https://www.applepay.skin):
+it applies a card design to an iPhone connected by USB cable. It changes card
+**artwork only** and never reads or touches payment data.
+
+- **License:** MIT, see `LICENSE` (fork of AirCard, see `NOTICE.md` and `LICENSE.aircard`).
+- **Download:** https://www.applepay.skin/download (free).
+- **Code signing policy:** Windows releases are built from this repository and signed
+  with an open-source code signing certificate. Only binaries built from the code in
+  this repository are signed; the signing key is never used for anything else.
+
+
 The native helper that actually applies a card skin to a USB-connected iPhone.
 Fork of AirCard (MIT — see `NOTICE.md`). Changes card **artwork only**; never
 touches payment data.
@@ -21,8 +32,8 @@ skini restore --card <hash>                # revert to the original artwork
 ### Bridge environment
 | Variable | Default | Meaning |
 |---|---|---|
-| `SKINI_SITE` | `https://skini.app/app` | Page opened on launch. |
-| `SKINI_ALLOWED_ORIGINS` | localhost + `https://skini.app` | Web origins allowed to call the bridge. |
+| `SKINI_SITE` | `https://www.applepay.skin/app` | Page opened on launch. |
+| `SKINI_ALLOWED_ORIGINS` | localhost + `https://www.applepay.skin` | Web origins allowed to call the bridge. |
 | `SKINI_SIMULATE` | — | `1` = pretend to apply (demos without a device). |
 
 The browser (same origin as the Skini server) fetches the licensed skin bytes and
